@@ -1,0 +1,38 @@
+node {
+    
+    def buildnumber = BUILD_NUMBER
+    
+    def mavenHome = tool name: 'maven3.9.4'
+    
+    stage('Git Clone') {
+        git 'https://github.com/ManojBharath/maven-web-application.git'
+    }
+    
+    stage('Build the pacakge') {
+        sh "${mavenHome}/bin/mvn clean install"
+    }
+    
+    stage('Docker image build') {
+        sh "docker build -t learningone/maven-web-application:${buildnumber} ."
+    }
+    
+    stage('Dockerhub login Authentication') {
+        withCredentials([string(credentialsId: 'dockerhubcred', variable: 'dockerhub_password')]) {
+            sh "docker login -u learningone -p ${dockerhub_password}"
+        }
+    }
+    
+    stage('Push Docker image to Docker Hub - 5') {
+        sh "docker push learningone/maven-web-application:${buildnumber}"
+    }
+    
+    stage('SSH to Deploy server & build container - 6') {
+        sshagent(['10d3ec59-eb74-40ef-8255-ad975006cd2c']) {
+            
+            sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.5.116 docker rm -f mavenappcontainer || true"
+            
+            sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.5.116 docker run -d -p 9090:8080 --name mavenappcontainer learningone/maven-web-application:${buildnumber}"
+        }
+        
+    }
+}
